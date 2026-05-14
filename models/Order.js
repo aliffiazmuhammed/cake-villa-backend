@@ -134,11 +134,10 @@ const orderSchema = new mongoose.Schema(
 );
 
 // Compute totalItems before saving
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", function () {
   if (this.items) {
     this.totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
   }
-  next();
 });
 
 module.exports = mongoose.model("Order", orderSchema);

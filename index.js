@@ -24,9 +24,14 @@ app.get("/", (req, res) => {
   res.json({ message: "Cake Gallery API is running" });
 });
 
-// Connect to DB and start server
-connectDB().then(() => {
+// Connect to DB
+connectDB();
+
+// Start server locally
+if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
-});
+}
+
+module.exports = app;
