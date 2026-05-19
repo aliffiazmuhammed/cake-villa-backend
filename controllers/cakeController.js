@@ -18,11 +18,14 @@ exports.createCake = async (req, res) => {
 // Get all cakes (with optional filters)
 exports.getCakes = async (req, res) => {
   try {
-    const { category, available, page = 1, limit = 10 } = req.query;
+    const { category, available, search, page = 1, limit = 10 } = req.query;
 
     const filter = {};
     if (category) filter.category = category.toLowerCase();
     if (available !== undefined) filter.available = available === "true";
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 

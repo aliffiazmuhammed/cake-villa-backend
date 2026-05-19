@@ -127,16 +127,63 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
+    // --- Payment Tracking ---
+    payments: [
+      {
+        amount: {
+          type: Number,
+          required: [true, "Payment amount is required"],
+          min: [1, "Payment amount must be at least 1"],
+        },
+        method: {
+          type: String,
+          enum: ["cash", "upi", "bank_transfer", "card", "other"],
+          default: "cash",
+        },
+        note: {
+          type: String,
+          default: "",
+          trim: true,
+        },
+        paidAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    amountPaid: {
+      type: Number,
+      default: 0,
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "partial", "paid"],
+      default: "unpaid",
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Compute totalItems before saving
+// Compute totalItems and payment fields before saving
 orderSchema.pre("save", function () {
   if (this.items) {
     this.totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
+  }
+
+  // Auto-compute payment totals
+  this.amountPaid = this.payments.reduce((sum, p) => sum + p.amount, 0);
+
+  if (this.amountPaid <= 0) {
+    this.paymentStatus = "unpaid";
+  } else if (this.amountPaid >= this.totalAmount) {
+    this.paymentStatus = "paid";
+  } else {
+    this.paymentStatus = "partial";
   }
 });
 

@@ -22,6 +22,38 @@ exports.placeOrder = async (req, res) => {
       });
     }
 
+    // --- Strict customer validations ---
+    if (!customer.name || !customer.name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "Customer name is required.",
+      });
+    }
+
+    if (!customer.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide a valid email address.",
+      });
+    }
+
+    if (!customer.phone || !/^\d{10}$/.test(customer.phone.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: "Phone number must be exactly 10 digits.",
+      });
+    }
+
+    if (!delivery.pincode || !/^\d{6}$/.test(delivery.pincode.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: "Pincode must be exactly 6 digits.",
+      });
+    }
+
+    // Convert name to full caps
+    customer.name = customer.name.trim().toUpperCase();
+
     // --- Validate delivery date is in the future ---
     const deliveryDate = new Date(delivery.date);
     const tomorrow = new Date();
@@ -197,14 +229,22 @@ exports.cancelOrder = async (req, res) => {
 // ─────────────────────────────────────────────
 exports.getAllOrders = async (req, res) => {
   try {
-    const { status, from, to, page = 1, limit = 10 } = req.query;
+    const { status, from, to, search, paymentStatus, page = 1, limit = 10 } = req.query;
 
     const filter = {};
     if (status) filter.status = status;
+    if (paymentStatus) filter.paymentStatus = paymentStatus;
     if (from || to) {
       filter.createdAt = {};
       if (from) filter.createdAt.$gte = new Date(from);
       if (to) filter.createdAt.$lte = new Date(to);
+    }
+    if (search) {
+      filter.$or = [
+        { orderId: { $regex: search, $options: "i" } },
+        { "customer.name": { $regex: search, $options: "i" } },
+        { "customer.phone": { $regex: search, $options: "i" } }
+      ];
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -312,6 +352,95 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid order ID" });
     }
     console.error("updateOrderStatus error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────────
+// ADMIN — Add a payment to an order
+// ─────────────────────────────────────────────
+exports.addPayment = async (req, res) => {
+  try {
+    const { amount, method, note } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Payment amount must be greater than 0",
+      });
+    }
+
+    const validMethods = ["cash", "upi", "bank_transfer", "card", "other"];
+    if (method && !validMethods.includes(method)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid payment method. Must be one of: ${validMethods.join(", ")}`,
+      });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    const currentPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+    const balance = order.totalAmount - currentPaid;
+
+    if (amount > balance) {
+      return res.status(400).json({
+        success: false,
+        error: `Payment amount (₹${amount}) exceeds remaining balance (₹${balance})`,
+      });
+    }
+
+    order.payments.push({
+      amount,
+      method: method || "cash",
+      note: note || "",
+      paidAt: new Date(),
+    });
+
+    await order.save();
+    await order.populate("items.cake", "name category price imageUrl");
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    if (error.kind === "ObjectId") {
+      return res.status(400).json({ success: false, error: "Invalid order ID" });
+    }
+    console.error("addPayment error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────────
+// ADMIN — Remove a payment from an order
+// ─────────────────────────────────────────────
+exports.removePayment = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    const paymentIndex = order.payments.findIndex(
+      (p) => p._id.toString() === req.params.paymentId
+    );
+
+    if (paymentIndex === -1) {
+      return res.status(404).json({ success: false, error: "Payment entry not found" });
+    }
+
+    order.payments.splice(paymentIndex, 1);
+    await order.save();
+    await order.populate("items.cake", "name category price imageUrl");
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    if (error.kind === "ObjectId") {
+      return res.status(400).json({ success: false, error: "Invalid ID" });
+    }
+    console.error("removePayment error:", error);
     res.status(500).json({ success: false, error: "Server error" });
   }
 };

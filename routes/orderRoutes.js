@@ -12,5 +12,7 @@ router.patch("/:id/cancel", orderController.cancelOrder);
 router.get("/", protect, orderController.getAllOrders);
 router.get("/:id", protect, orderController.getOrderById);
 router.patch("/:id/status", protect, orderController.updateOrderStatus);
+router.post("/:id/payments", protect, orderController.addPayment);
+router.delete("/:id/payments/:paymentId", protect, orderController.removePayment);
 
 module.exports = router;
