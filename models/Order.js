@@ -17,6 +17,24 @@ const orderItemSchema = new mongoose.Schema(
       required: [true, "Size/weight is required"],
       min: [0, "Size/weight cannot be negative"],
     },
+    flavour: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    eggOption: {
+      type: String,
+      enum: ["egg", "eggless", ""],
+      default: "",
+    },
+    pricePerKg: {
+      type: Number,
+      default: 0,
+    },
+    itemTotal: {
+      type: Number,
+      default: 0,
+    },
     message: {
       type: String,
       default: "",

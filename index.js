@@ -7,6 +7,7 @@ const cakeRoutes = require("./routes/cakeRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const authRoutes = require("./routes/authRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,6 +21,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/cakes", cakeRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/categories", categoryRoutes);
 
 // Health check
 app.get("/", (req, res) => {

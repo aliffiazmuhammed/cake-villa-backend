@@ -91,7 +91,33 @@ exports.placeOrder = async (req, res) => {
         );
       }
 
-      totalAmount += cake.price * item.quantity;
+      // Validate flavour
+      if (cake.isFlavoured) {
+        if (!item.flavour || !cake.flavours.includes(item.flavour)) {
+          validationErrors.push(
+            `Item ${i + 1}: Invalid or missing flavour for "${cake.name}". Available: ${cake.flavours.join(", ")}`
+          );
+        }
+      } else {
+        item.flavour = "";
+      }
+
+      // Validate egg option
+      if (cake.eggOptionAvailable) {
+        if (!item.eggOption || !["egg", "eggless"].includes(item.eggOption)) {
+          validationErrors.push(
+            `Item ${i + 1}: Egg option (egg/eggless) is required for "${cake.name}"`
+          );
+        }
+      } else {
+        item.eggOption = "";
+      }
+
+      // Calculate price: pricePerKg × size(kg) × quantity
+      const itemTotal = cake.pricePerKg * item.size * item.quantity;
+      item.pricePerKg = cake.pricePerKg;
+      item.itemTotal = itemTotal;
+      totalAmount += itemTotal;
     }
 
     if (validationErrors.length > 0) {
@@ -128,7 +154,7 @@ exports.placeOrder = async (req, res) => {
     });
 
     // --- Populate cake details for response ---
-    await order.populate("items.cake", "name category price imageUrl");
+    await order.populate("items.cake", "name category pricePerKg imageUrl isFlavoured flavours eggOptionAvailable");
 
     // --- WhatsApp notifications ---
     try {
@@ -166,7 +192,7 @@ exports.getOrderByIdAndPhone = async (req, res) => {
     const order = await Order.findOne({
       orderId,
       "customer.phone": phone,
-    }).populate("items.cake", "name category price imageUrl");
+    }).populate("items.cake", "name category pricePerKg imageUrl isFlavoured flavours eggOptionAvailable");
 
     if (!order) {
       return res.status(404).json({
@@ -229,15 +255,24 @@ exports.cancelOrder = async (req, res) => {
 // ─────────────────────────────────────────────
 exports.getAllOrders = async (req, res) => {
   try {
-    const { status, from, to, search, paymentStatus, page = 1, limit = 10 } = req.query;
+    const { status, from, to, deliveryFrom, deliveryTo, search, paymentStatus, page = 1, limit = 10 } = req.query;
 
     const filter = {};
     if (status) filter.status = status;
     if (paymentStatus) filter.paymentStatus = paymentStatus;
+    
+    // Order Date filter (createdAt)
     if (from || to) {
       filter.createdAt = {};
       if (from) filter.createdAt.$gte = new Date(from);
       if (to) filter.createdAt.$lte = new Date(to);
+    }
+    
+    // Delivery Date filter (delivery.date)
+    if (deliveryFrom || deliveryTo) {
+      filter["delivery.date"] = {};
+      if (deliveryFrom) filter["delivery.date"].$gte = new Date(deliveryFrom);
+      if (deliveryTo) filter["delivery.date"].$lte = new Date(deliveryTo);
     }
     if (search) {
       filter.$or = [
@@ -251,7 +286,7 @@ exports.getAllOrders = async (req, res) => {
 
     const [orders, total] = await Promise.all([
       Order.find(filter)
-        .populate("items.cake", "name category price imageUrl")
+        .populate("items.cake", "name category pricePerKg imageUrl isFlavoured flavours eggOptionAvailable")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -281,7 +316,7 @@ exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate(
       "items.cake",
-      "name category price imageUrl"
+      "name category pricePerKg imageUrl isFlavoured flavours eggOptionAvailable"
     );
 
     if (!order) {
@@ -401,7 +436,7 @@ exports.addPayment = async (req, res) => {
     });
 
     await order.save();
-    await order.populate("items.cake", "name category price imageUrl");
+    await order.populate("items.cake", "name category pricePerKg imageUrl isFlavoured flavours eggOptionAvailable");
 
     res.status(200).json({ success: true, data: order });
   } catch (error) {
@@ -433,7 +468,7 @@ exports.removePayment = async (req, res) => {
 
     order.payments.splice(paymentIndex, 1);
     await order.save();
-    await order.populate("items.cake", "name category price imageUrl");
+    await order.populate("items.cake", "name category pricePerKg imageUrl isFlavoured flavours eggOptionAvailable");
 
     res.status(200).json({ success: true, data: order });
   } catch (error) {

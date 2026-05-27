@@ -40,10 +40,22 @@ const cakeSchema = new mongoose.Schema(
         min: [0, "Max size/weight cannot be negative"],
       },
     },
-    price: {
+    pricePerKg: {
       type: Number,
-      required: [true, "Price is required"],
-      min: [0, "Price cannot be negative"],
+      required: [true, "Price per kg is required"],
+      min: [0, "Price per kg cannot be negative"],
+    },
+    isFlavoured: {
+      type: Boolean,
+      default: false,
+    },
+    flavours: {
+      type: [String],
+      default: [],
+    },
+    eggOptionAvailable: {
+      type: Boolean,
+      default: false,
     },
     imageUrl: {
       type: String,
@@ -65,6 +77,13 @@ cakeSchema.pre("validate", function () {
     this.invalidate(
       "sizeWeight.max",
       "Max size/weight must be greater than or equal to min"
+    );
+  }
+  // Validate flavours when isFlavoured is true
+  if (this.isFlavoured && (!this.flavours || this.flavours.length === 0)) {
+    this.invalidate(
+      "flavours",
+      "At least one flavour is required when cake is flavoured"
     );
   }
 });
